@@ -42,7 +42,7 @@ CACHE_CORRUPTION_PATTERNS = [
     "'NoneType' object is not subscriptable",
     # Cache structure corruption - more specific patterns
     "BatchKVCache' object has no attribute",
-    "KVCache' object has no attribute", 
+    "KVCache' object has no attribute",
     # Cache state corruption - require context of cache operations
     "cache is not subscriptable",
     # Cache reference errors - more specific than just class names
@@ -2322,7 +2322,7 @@ class Scheduler:
 
     def _is_cache_corruption_error(self, error: Exception) -> bool:
         """Check if an error indicates cache corruption.
-        
+
         Uses multi-layer validation to reduce false positives:
         1. Pattern matching against specific corruption indicators
         2. Context validation to ensure cache-related operations
@@ -2330,26 +2330,26 @@ class Scheduler:
         """
         error_str = str(error)
         error_type = type(error).__name__
-        
+
         # Fast path: check specific patterns first
         pattern_match = any(pattern in error_str for pattern in CACHE_CORRUPTION_PATTERNS)
         if not pattern_match:
             return False
-            
+
         # Context validation: ensure this is actually cache-related
         # Check if error mentions cache operations or structures
         cache_context_indicators = [
-            'cache', 'kv', 'key', 'value', 'state', 
+            'cache', 'kv', 'key', 'value', 'state',
             'batch', 'generator', 'prompt_cache'
         ]
         has_cache_context = any(indicator in error_str.lower() for indicator in cache_context_indicators)
-        
+
         # For the specific NoneType subscriptable error, it's a strong corruption indicator
         # even without explicit cache context since it's the primary pattern we're catching
         if "'NoneType' object is not subscriptable" in error_str:
             logger.debug(f"Cache corruption detected (NoneType pattern): {error_type}: {error_str}")
             return True
-        
+
         # For TypeErrors, be extra careful about false positives
         if error_type == 'TypeError':
             # Common false positive patterns that should NOT trigger cache recovery
@@ -2361,26 +2361,26 @@ class Scheduler:
                 'cache_size',  # Parameter access, not corruption
                 'len() of unsized object',
             ]
-            
+
             # If any false positive pattern matches, don't treat as cache corruption
             if any(fp in error_str for fp in false_positive_patterns):
                 logger.debug(f"Skipping cache recovery for TypeError (false positive): {error_str}")
                 return False
-                
+
             # For TypeErrors, require explicit cache context
             if not has_cache_context:
                 return False
-        
+
         # For AttributeError, verify it's cache-related
         if error_type == 'AttributeError':
             if not has_cache_context:
                 return False
-                
+
         # Log decision for debugging
         if pattern_match and has_cache_context:
             logger.debug(f"Cache corruption detected: {error_type}: {error_str}")
             return True
-            
+
         return False
 
     def _recover_from_cache_error(self) -> None:
